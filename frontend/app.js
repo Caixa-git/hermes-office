@@ -388,17 +388,53 @@ function zoomIn() { zoom = Math.min(MAX_ZOOM, zoom + 0.2); applyTransform(); }
 function zoomOut() { zoom = Math.max(MIN_ZOOM, zoom - 0.2); applyTransform(); }
 function zoomReset() { zoom = 1; panX = 0; panY = 0; applyTransform(); }
 
-// ── Activity Feed ─────────────────────────────────────────────────────
+// ── Chat Panel (bottom) ────────────────────────────────────────────────
+
+let chatCollapsed = false;
+let unreadCount = 0;
 
 function renderActivityFeed() {
-  const feed = document.getElementById('event-feed');
-  if (!feed) return;
-  feed.innerHTML = feedEntries.map(e => `
-    <div class="feed-entry">
-      <div><span class="feed-task">${esc(e.task_id)}</span> <span class="feed-time">${esc(e.timestamp)}</span></div>
-      <div>${esc(e.message.slice(0, 120))}</div>
-    </div>
-  `).join('');
+  const msgs = document.getElementById('chat-messages');
+  const badge = document.getElementById('chat-badge');
+  if (!msgs) return;
+
+  // Only update if new entries
+  const currentLen = msgs.children.length;
+  if (feedEntries.length === currentLen && currentLen > 0) return;
+
+  // Count new entries
+  const newCount = feedEntries.length - currentLen;
+  if (newCount > 0 && chatCollapsed) {
+    unreadCount += newCount;
+    badge.textContent = unreadCount || '';
+  }
+
+  msgs.innerHTML = feedEntries.slice(0, 40).map(e => {
+    // Infer status color from message content
+    let cls = 'neutral';
+    const msg = e.message.toLowerCase();
+    if (msg.includes('done') || msg.includes('completed') || msg.includes('success')) cls = 'done';
+    else if (msg.includes('fail') || msg.includes('error') || msg.includes('취소')) cls = 'failed';
+    else if (msg.includes('progress') || msg.includes('start') || msg.includes('시작') || msg.includes('실행')) cls = 'active';
+
+    return `<div class="chat-msg ${cls}">
+      <div class="msg-id">${esc(e.task_id)}<span class="msg-time">${esc(e.timestamp)}</span></div>
+      <div>${esc(e.message.slice(0, 150))}</div>
+    </div>`;
+  }).join('');
+
+  // Auto-scroll to bottom
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function toggleChat() {
+  const panel = document.getElementById('chat-panel');
+  chatCollapsed = !chatCollapsed;
+  panel.classList.toggle('collapsed', chatCollapsed);
+  if (!chatCollapsed) {
+    unreadCount = 0;
+    document.getElementById('chat-badge').textContent = '';
+  }
 }
 
 // ── Overlay / Detail ──────────────────────────────────────────────────
@@ -429,6 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('zoom-reset')?.addEventListener('click', zoomReset);
   document.getElementById('overlay-close')?.addEventListener('click', hideOverlay);
   document.getElementById('overlay')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) hideOverlay(); });
+  document.getElementById('chat-toggle')?.addEventListener('click', toggleChat);
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') hideOverlay();
